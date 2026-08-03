@@ -1,0 +1,19 @@
+{
+  "name": "Changing History",
+  "description": "A way to see how the website looks in the past",
+  "version": "1.0",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {},
+  "permissions": [
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://archive.org/*",
+    "https://web.archive.org/*"
+  ]
+}
