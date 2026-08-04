@@ -67,31 +67,52 @@ async function getCurrentTabUrl() {
   return url;
 }
 
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+async function getCurrentTabId() {
+  let queryOptions = { active: true, lastFocusedWindow: true };
+
+  let [tab] = await chrome.tabs.query(queryOptions);
+  let tabId;
+  if (tab !== null && tab !== undefined) {
+    tabId = tab.id;
+  } else {
+    tabId = undefined;
+  }
+  console.log("CURRENT TAB ID: ", tabId);
+  return tabId;
+}
+
+
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_URL") {
-    const waybackApiLinks = [];
-    const years = []
-    currentURL = await getCurrentTabUrl();
-    const timestamps = await checkWaybackMachine(currentURL);
+    (async () => {
 
-    for (let i = 0; i < timestamps.length; i = i + 1) {
-      const timestamp = timestamps[i];
-      waybackApiLinks.push(`https://web.archive.org/web/${timestamp}/${currentURL}`);
-    }
+      let data = {}
 
-    for (let i = 0; i < timestamps.length; i = i + 1) {
-      years.push(timestamps[i].slice(0, 4));
-    }
+      const currentURL = await getCurrentTabUrl();
+      const currentTabID = await getCurrentTabId();
+      const timestamps = await checkWaybackMachine(currentURL);
+
+      for (let i = 0; i < timestamps.length; i++) {
+        const timestamp = timestamps[i];
+        const year = timestamp.slice(0, 4);
+        const link = `https://web.archive.org/web/${timestamp}/${currentURL}`
 
 
-    console.log("YEARS: ", years);
-    console.log("API LINKS", waybackApiLinks);
+        data[year] = link
+        console.log("YEARS: ", year);
+        console.log("API LINKS", link);
+      }
 
-    sendResponse({
-      years,
-      waybackApiLinks,
-    });
 
+      console.log("DATA ", data);
+
+
+
+      sendResponse({
+        data
+      });
+    })();
     return true;
   }
 });
