@@ -22,11 +22,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 container.appendChild(label);
 
             }
-
-
-
-
-
             // years.forEach((year) => {
             //     const label = document.createElement("label");
             //     const radio = document.createElement("input");
@@ -40,5 +35,14 @@ document.addEventListener("DOMContentLoaded", () => {
             //     container.appendChild(label);
             // });
         });
+    });
+
+
+    container.addEventListener("change", (event) => {
+        if (event.target.matches('input[type="radio"][name="years"]')) {
+            const selectedLink = event.target.value;
+            chrome.runtime.sendMessage({ type: "REWIND_PAGE", selectedLink: selectedLink })
+            console.log("selectedLINK", selectedLink)
+        }
     });
 });

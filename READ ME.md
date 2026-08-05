@@ -5,7 +5,7 @@ High Level Design
     - User then clicks the activate button on the popup 
     - When activate icon is clicked, the tab url and id are found for that tab
     - The tab url is used to call the WayBack API and find the past states of the tab per year
-    - The past states + the year is saved 
+    - The past states + the year is saved + 
     - a message is sent to popup.js from background.js containing the past tab states, tab id. and the years
     - popup.js takes those values and uses the years to make a dynamic radio selecter (USER SEES THIS)
     - the value atribute in the radio selecter is set to the past tab states for that year

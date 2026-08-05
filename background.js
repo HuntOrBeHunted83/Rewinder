@@ -81,6 +81,9 @@ async function getCurrentTabId() {
   return tabId;
 }
 
+async function changeTabURl(tabID, newUrl) {
+  await chrome.tabs.update(tabID, { url: newUrl })
+}
 
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -90,7 +93,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       let data = {}
 
       const currentURL = await getCurrentTabUrl();
-      const currentTabID = await getCurrentTabId();
       const timestamps = await checkWaybackMachine(currentURL);
 
       for (let i = 0; i < timestamps.length; i++) {
@@ -98,21 +100,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const year = timestamp.slice(0, 4);
         const link = `https://web.archive.org/web/${timestamp}/${currentURL}`
 
-
         data[year] = link
         console.log("YEARS: ", year);
         console.log("API LINKS", link);
       }
 
-
       console.log("DATA ", data);
-
-
 
       sendResponse({
         data
       });
     })();
+
     return true;
+
+  } else if (message.type === "REWIND_PAGE") {
+
+    const selectedLink = message.selectedLink;
+    console.log("Received link:", selectedLink);
+
+    (async () => {
+      const currentTabID = await getCurrentTabId();
+      changeTabURl(currentTabID, selectedLink)
+    })();
+
+
   }
 });
