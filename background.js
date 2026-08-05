@@ -16,10 +16,10 @@ async function setStorageLocal(items) {
 
 async function getStorageLocal(key) {
   try {
-    let values = await chrome.storage.local.get(key)
+    let values = await chrome.storage.local.get(String(key))
     // Check if the key exists in the object, even if the value is false, 0, or ""
-    if (values && key in values) {
-      return values[key];
+    if (values && String(key) in values) {
+      return values[String(key)];
     }
     return null
   } catch (error) {
@@ -28,7 +28,7 @@ async function getStorageLocal(key) {
   }
 }
 
-async function removeStorageLocl(items) {
+async function removeStorageLocal(items) {
   try {
     await chrome.storage.local.remove(items)
   } catch (error) {
@@ -80,8 +80,10 @@ async function checkWaybackMachine(url) {
     //   console.log("RAW SNAPSHOT DATA", snapshots)
   } catch (error) {
     console.error(`API Error:`, error);
+    return [];
   }
 }
+
 
 async function getCurrentTabUrl() {
   let queryOptions = { active: true, lastFocusedWindow: true };
@@ -143,7 +145,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       console.log("DATA ", data);
 
-      await setStorageLocal({ [tabID]: data });
+      await setStorageLocal({ [String(tabID)]: data });
+      const check = await chrome.storage.local.get(null);
+      console.log("FULL STORAGE AFTER SET:", check);
+
       sendResponse({
         data
       });
@@ -162,5 +167,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
 
 
+  } else if (message.type === "GET_OLD_DATA") {
+    (async () => {
+      const tabID = await getCurrentTabId();
+      console.log("TABID", tabID)
+      const data = await getStorageLocal(tabID);
+
+      if (data !== null) {
+        sendResponse({ data });
+      } else {
+        console.log("Key does not exist");
+        sendResponse("NOTHING_FOUND");
+      }
+    })();
+
+    return true;
   }
 });
