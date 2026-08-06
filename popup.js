@@ -2,6 +2,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 function init() {
     const activate = document.getElementById("rewind");
+    const home = document.getElementById("home");
     const container = document.getElementById("years");
 
     activate.addEventListener("click", () => {
@@ -15,6 +16,13 @@ function init() {
             createSlider(data)
         });
     });
+
+    home.addEventListener("click", () => {
+        chrome.runtime.sendMessage({ type: "RETURN_PAGE_TO_HOME" })
+    });
+
+
+
 }
 
 
@@ -49,12 +57,18 @@ function createSlider(data) {
         return;
     }
 
+
+
     const rangeInput = document.createElement('input');
     rangeInput.type = 'range';
     rangeInput.id = 'rangeInput';
-    rangeInput.min = '0';
+    rangeInput.min = 0;
     rangeInput.max = entryCount - 1;
-    rangeInput.step = '1';
+    rangeInput.step = 1;
+    // rangeInput.orient = 'vertical'
+    rangeInput.value = entryCount - 3;
+    rangeInput.list = "volumeSteps"
+
 
     const label1 = document.createElement('label');
     label1.id = 'label1';
