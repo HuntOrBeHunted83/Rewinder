@@ -14,3 +14,47 @@ High Level Design
     - a message is sent to background.js from popup.js with that value attribute ( the wayback API)
     - using that value attribute ( the wayback API) and the previously saved tab ID the current tab (found via tabID) changes its url to wayBack APIs
     - The user then can change the rdio button to see other years of that tab! 
+
+
+    user activates the extension 
+    user opens a new tab 
+    user clicks the activate button for that tab 
+        PopUp -> BG GET_WAYBACK_DATA
+
+
+    PopUp
+        OnClick Activate Button
+            Send  GET_WAYBACK_DATA to BG 
+        
+        OnMesssage
+            
+
+    BG
+        OnMessage GET_WAYBACK_DATA message 
+            check happens, does the tabID + url combo exists in local storage
+                Yes 
+                    Send message to PopUP with stored data
+                NO
+                    Send a request to WayBack and get wayback data
+                    Store the wayback data in storage
+                    Send message to PopUP with stored data
+
+        TabOnActivated 
+            Send CLEANUP message to PopUP
+
+
+                        another check happens 
+                            check if the current tabID + url equal to the tabID + url that was called
+                                Yes 
+                                    Load the previous a slider
+                                No
+                                    Do not create a slider
+                    No 
+                        Make a call to Wayback API and create the data which is sent to popup.js
+                        Check if the the current tabID + url equal to the tabID + url that was called
+                            Yes 
+                                Create a new slider
+                            No
+                                Save data to the local storage with the old TABID + url combo
+                                Do not make a slider
+

@@ -1,6 +1,10 @@
 let currentURL;
 let url;
 
+chrome.runtime.onInstalled.addListener(() => {
+  // Configures the extension icon to act as a toggle for the side panel
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+});
 
 // chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 //   window.open
@@ -85,102 +89,74 @@ async function checkWaybackMachine(url) {
 }
 
 
-async function getCurrentTabUrl() {
+async function getCurrentTabInfo() {
   let queryOptions = { active: true, lastFocusedWindow: true };
 
   let [tab] = await chrome.tabs.query(queryOptions);
-  if (tab !== null && tab !== undefined) {
-    url = tab.url;
-  } else {
-    url = undefined;
-  }
-  console.log("CURRENT URL: ", url);
-  return url;
+  console.log("CURRENT URL: ", tab.url, tab.id);
+  return tab;
 }
 
-async function getCurrentTabId() {
-  let queryOptions = { active: true, lastFocusedWindow: true };
-
-  let [tab] = await chrome.tabs.query(queryOptions);
-  let tabId;
-  if (tab !== null && tab !== undefined) {
-    tabId = tab.id;
-  } else {
-    tabId = undefined;
-  }
-  console.log("CURRENT TAB ID: ", tabId);
-  return tabId;
-}
-
-async function changeTabURl(tabID, newUrl) {
+async function changeTabURL(tabID, newUrl) {
   await chrome.tabs.update(tabID, { url: newUrl })
 }
 
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === "GET_URL") {
-    (async () => {
-      let data = {
-        identifiers: {
-          tabURL: "",
-          tabID: "",
-        },
-        information: {}
-      }
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  const currentTab = await getCurrentTabInfo();
+  if (message.type === "GET_WAYBACK_DATA") {
+    const key = `${currentTab.id}|${currentTab.url}`;
 
-      const currentURL = await getCurrentTabUrl();
-      data.identifiers["tabURL"] = currentURL
-      const tabID = await getCurrentTabId()
-      data.identifiers["tabID"] = tabID
-      const timestamps = await checkWaybackMachine(currentURL);
+    const result = await getStorageLocal(key);
+    if (result && Object.keys(result.information).length > 0) {
+      sendResponse({ data: result });
+      return;
+    } else {
+      console.log("FAILED")
+    }
 
-      for (let i = 0; i < timestamps.length; i++) {
-        const timestamp = timestamps[i];
-        const link = `https://web.archive.org/web/${timestamp}/${currentURL}`
+    const data = {
+      identifiers: {
+        tabURL: currentTab.url,
+        tabID: currentTab.id,
+      },
+      information: {}
+    };
 
-        data.information[timestamp] = link
-        console.log("timestamp: ", timestamp);
-        console.log("API LINKS", link);
-      }
+    const timestamps = await checkWaybackMachine(currentTab.url);
 
-      console.log("DATA ", data);
+    for (let i = 0; i < timestamps.length; i++) {
+      const timestamp = timestamps[i];
+      const link = `https://web.archive.org/web/${timestamp}/${currentTab.url}`;
+      data.information[i] = { timestamp, link };
+    }
 
-      await setStorageLocal({ [String(tabID)]: data });
-      const check = await chrome.storage.local.get(null);
-      console.log("FULL STORAGE AFTER SET:", check);
+    console.log("BG onMessage GET_WAYBACK_DATA: ", data);
 
-      sendResponse({
-        data
-      });
-    })();
+    await setStorageLocal({
+      [key]: data,
+    });
 
-    return true;
+    sendResponse({ data });
 
   } else if (message.type === "REWIND_PAGE") {
+    console.log("BG onMessage REWIND_PAGE Received link:", message.selectedLink);
+    changeTabURL(currentTab.id, message.selectedLink);
 
-    const selectedLink = message.selectedLink;
-    console.log("Received link:", selectedLink);
-
-    (async () => {
-      const currentTabID = await getCurrentTabId();
-      changeTabURl(currentTabID, selectedLink)
-    })();
-
-
-  } else if (message.type === "GET_OLD_DATA") {
-    (async () => {
-      const tabID = await getCurrentTabId();
-      console.log("TABID", tabID)
-      const data = await getStorageLocal(tabID);
-
-      if (data !== null) {
-        sendResponse({ data });
-      } else {
-        console.log("Key does not exist");
-        sendResponse("NOTHING_FOUND");
-      }
-    })();
-
-    return true;
   }
+  // else if (message.type === "GET_STORED_WAYBACK_DATA") {
+  //   const key = `${currentTab.id}|${currentTab.url}`;
+  //   const result = await getStorageLocal(key);
+  //   const data = result ? result[key] : undefined;
+
+  //   console.log("BG onMessage GET_STORED_WAYBACK_DATA:", currentTab.id, data);
+
+  //   sendResponse({ data });
+  // }
 });
+
+
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  chrome.runtime.sendMessage({ type: "TAB_ACTIVATED" })
+});
+
