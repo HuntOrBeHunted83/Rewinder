@@ -1,14 +1,33 @@
 let currentURL;
 let url;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+export function hostnameOf(url) {
+  try {
+    let newUrl = isArchiveUrl(url) ? originOf(url) : url
+    return new URL(newUrl).hostname;
+  } catch {
+    return url;
+  }
+}
+
+
+// https://web.archive.org/web/<ts>(if_)?/https://site/...
+export function originOf(url) {
+  const m = /^https?:\/\/web\.archive\.org\/web\/\d+(?:\w{2,3}_)?\/(.+)$/.exec(url || "");
+  return m ? m[1] : url;
+}
+
+// true when the tab is already sitting on an archived page (mid-reverse).
+export function isArchiveUrl(url) {
+  return /^https?:\/\/web\.archive\.org\/web\/\d+/.test(url || "");
+}
+
 
 chrome.runtime.onInstalled.addListener(() => {
   // Configures the extension icon to act as a toggle for the side panel
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 });
-
-// chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-//   window.open
-// });
 
 async function setStorageLocal(items) {
   try {
@@ -40,13 +59,36 @@ async function removeStorageLocal(items) {
   }
 }
 
-async function checkWaybackMachine(url) {
+async function getCurrentWaybackData(currentTab, key) {
+
+  const data = {
+    identifiers: {
+      tabURL: currentTab.url,
+      tabID: currentTab.id,
+    },
+    information: {}
+  };
+
+  const timestamps = await getWaybackDataFromApi(currentTab.url);
+
+  for (let i = 0; i < timestamps.length; i++) {
+    const timestamp = timestamps[i];
+    const link = `https://web.archive.org/web/${timestamp}/${currentTab.url}`;
+    data.information[i] = { timestamp, link };
+  }
+  data.identifiers["timestamp"] = Date.now()
+  console.log("BG getCurrentWaybackData : ", data);
+
+  await setStorageLocal({ [key]: data });
+  return data
+}
+
+async function getWaybackDataFromApi(url) {
   const apiUrl =
     `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(url)}` +
-    `&output=json&fl=timestamp,original,statuscode,mimetype,digest` +
-    `&collapse=timestamp:10` + `&from=2020&to=2026`;
+    `&output=json&fl=timestamp&collapse=timestamp:6`;
 
-  console.log(`Checking Wayback CDX API for: ${url}`);
+  console.log(`BG getWaybackDataFromApi url ${url}`);
 
   try {
     const response = await fetch(apiUrl);
@@ -56,44 +98,13 @@ async function checkWaybackMachine(url) {
     }
 
     const data = await response.json();
-    console.log("raw data:", data);
+    console.log("BG getWaybackDataFromApi raw data:", data);
     const timestamps = [];
 
     for (let i = 1; i < data.length; i = i + 1) {
       timestamps.push(data[i][0]);
     }
-
-    console.log("BG time", timestamps)
-
     return timestamps;
-
-    // return [
-    //   "20221206224830",
-    //   "20230110210253",
-    //   "20240101215109",
-    //   "20250101074344",
-    //   "20260101013318"
-    // ]
-
-
-
-    //   if (!Array.isArray(data) || data.length <= 1) {
-    //     console.log(` No snapshots found for this URL.`);
-    //     return;
-    //   }
-
-    //   const headers = data[0];
-    //   const snapshots = data.slice(1).map(row =>
-    //     Object.fromEntries(headers.map((h, i) => [h, row[i]]))
-    //   );
-
-    //   console.log(` Found ${snapshots.length} yearly snapshots:`);
-    //   snapshots.forEach((snap, index) => {
-    //     console.log(
-    //       `[${index + 1}] ${snap.timestamp} | ${snap.original} | ${snap.statuscode} | ${snap.mimetype} | ${snap.digest}`
-    //     );
-    //   });
-    //   console.log("RAW SNAPSHOT DATA", snapshots)
   } catch (error) {
     console.error(`API Error:`, error);
     return [];
@@ -105,7 +116,7 @@ async function getCurrentTabInfo() {
   let queryOptions = { active: true, lastFocusedWindow: true };
 
   let [tab] = await chrome.tabs.query(queryOptions);
-  console.log("CURRENT URL: ", tab.url, tab.id);
+  console.log("BG getCurrentTabInfo Key: ", tab.url, tab.id);
   return tab;
 }
 
@@ -113,71 +124,51 @@ async function changeTabURL(tabID, newUrl) {
   await chrome.tabs.update(tabID, { url: newUrl })
 }
 
+async function getStoredWaybackData(key) {
+  const storedWaybackData = await getStorageLocal(key);
+  if (storedWaybackData) {
+    if (Date.now() - storedWaybackData.identifiers["timestamp"] > ONE_DAY_MS || Object.keys(storedWaybackData.information).length == 0) {
+      console.log("BG getStoredWaybackData waybackData is stale in storage, removing it")
+      removeStorageLocal(key)
+      return null
+    } else {
+      return storedWaybackData
+    }
+  } else {
+    console.log("BG getStoredWaybackData waybackData not present in storage")
+  }
+  return null
+}
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   const currentTab = await getCurrentTabInfo();
+  const key = currentTab.id + ":" + hostnameOf(currentTab.url);
+
   if (message.type === "GET_WAYBACK_DATA") {
-    const key = `${currentTab.id}|${currentTab.url}`;
-
-    const result = await getStorageLocal(key);
-    if (result && Object.keys(result.information).length > 0) {
-      sendResponse({ data: result });
-      return;
-    } else {
-      console.log("FAILED")
+    console.log("BG onMessage GET_WAYBACK_DATA", key);
+    let waybackData = await getStoredWaybackData(key)
+    if (waybackData == null) {
+      waybackData = await getCurrentWaybackData(currentTab, key)
     }
-
-    const data = {
-      identifiers: {
-        tabURL: currentTab.url,
-        tabID: currentTab.id,
-      },
-      information: {}
-    };
-
-    const timestamps = await checkWaybackMachine(currentTab.url);
-
-    for (let i = 0; i < timestamps.length; i++) {
-      const timestamp = timestamps[i];
-      const link = `https://web.archive.org/web/${timestamp}/${currentTab.url}`;
-      data.information[i] = { timestamp, link };
-    }
-
-    console.log("BG onMessage GET_WAYBACK_DATA: ", data);
-
-    await setStorageLocal({
-      [key]: data,
-    });
-
-    sendResponse({ data });
+    sendResponse({ data: waybackData });
 
   } else if (message.type === "REWIND_PAGE") {
-    console.log("BG onMessage REWIND_PAGE Received link:", message.selectedLink);
+    console.log("BG onMessage REWIND_PAGE", key, message.selectedLink);
     changeTabURL(currentTab.id, message.selectedLink);
 
   } else if (message.type === "RETURN_PAGE_TO_HOME") {
-    const allData = await chrome.storage.local.get(null);
-    const key = Object.keys(allData).find(key => key.startsWith(`${currentTab.id}|`));
-
-    if (key) {
-      changeTabURL(currentTab.id, allData[key].identifiers.tabURL);
+    let waybackData = await getStoredWaybackData(key)
+    if (waybackData) {
+      await changeTabURL(currentTab.id, waybackData.identifiers.tabURL);
+      sendResponse({ ok: true });
     } else {
       console.warn("No stored Wayback data found for this tab.");
+      sendResponse({ ok: false });
     }
   }
-  // else if (message.type === "GET_STORED_WAYBACK_DATA") {
-  //   const key = `${currentTab.id}|${currentTab.url}`;
-  //   const result = await getStorageLocal(key);
-  //   const data = result ? result[key] : undefined;
-
-  //   console.log("BG onMessage GET_STORED_WAYBACK_DATA:", currentTab.id, data);
-
-  //   sendResponse({ data });
-  // }
 });
 
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   chrome.runtime.sendMessage({ type: "TAB_ACTIVATED" })
 });
-
