@@ -3,49 +3,28 @@
 <head>
     <meta charset="utf-8" />
     <title>Tab Rot!</title>
+    <link rel="stylesheet" href="popup.css" />
     <script src="popup.js" defer></script>
-    <style>
-        html {
-            min-height: 5em;
-            min-width: 15em;
-            background: rgb(18, 224, 243);
-        }
-
-        .slider-container {
-            margin-top: 12px;
-        }
-    </style>
-
-    <style>
-  input[type="range"] {
-    writing-mode: vertical-lr;
-    direction: rtl;
-    vertical-align: middle;
-    width: 400px;
-    height: 400px;  /* Space around the slider */
-  cursor: pointer;
-  }
-
-</style>
-
 </head>
 <body>
-    <button id="rewind">REWIND!!</button>
-    <button id="home" > Return to orignial webpage</button>
+    <header class="header">
+        <h1>🕰️ Shinny Past</h1>
+        <p class="subtitle">Peek at this page's history</p>
+    </header>
 
-    <datalist id="volumeSteps">
-  <option value="0" label="0"></option>
-  <option value="10" label="10"></option>
-  <option value="20" label="20"></option>
-  <option value="30" label="30"></option>
-  <option value="40" label="40"></option>
-  <option value="50" label="50"></option>
-  <option value="60" label="60"></option>
-  <option value="70" label="70"></option>
-  <option value="80" label="80"></option>
-  <option value="90" label="90"></option>
-  <option value="100" label="100"></option>
-</datalist>
+    <div class="controls">
+        <button id="rewind" class="btn btn-primary">
+            <span class="icon">⏪</span> Rewind
+        </button>
+        <button id="home" class="btn btn-secondary" disabled>
+            <span class="icon">🏠</span> Return to live page
+        </button>
+    </div>
 
+    <div id="sliderSection" class="slider-section"></div>
+
+    <footer class="footer">
+        <span id="status" class="status"></span>
+    </footer>
 </body>
 </html>

@@ -44,36 +44,36 @@ async function checkWaybackMachine(url) {
   const apiUrl =
     `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(url)}` +
     `&output=json&fl=timestamp,original,statuscode,mimetype,digest` +
-    `&collapse=timestamp:4` + `&from=2020&to=2026`;
+    `&collapse=timestamp:10` + `&from=2020&to=2026`;
 
   console.log(`Checking Wayback CDX API for: ${url}`);
 
   try {
-    // const response = await fetch(apiUrl);
+    const response = await fetch(apiUrl);
 
-    // if (!response.ok) {
-    //   throw new Error(`HTTP error! status: ${response.status}`);
-    // }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-    // const data = await response.json();
-    // console.log("raw data:", data);
-    // const timestamps = [];
+    const data = await response.json();
+    console.log("raw data:", data);
+    const timestamps = [];
 
-    // for (let i = 1; i < data.length; i = i + 1) {
-    //   timestamps.push(data[i][0]);
-    // }
+    for (let i = 1; i < data.length; i = i + 1) {
+      timestamps.push(data[i][0]);
+    }
 
-    // console.log("BG time", timestamps)
+    console.log("BG time", timestamps)
 
-    // return timestamps;
+    return timestamps;
 
-    return [
-      "20221206224830",
-      "20230110210253",
-      "20240101215109",
-      "20250101074344",
-      "20260101013318"
-    ]
+    // return [
+    //   "20221206224830",
+    //   "20230110210253",
+    //   "20240101215109",
+    //   "20250101074344",
+    //   "20260101013318"
+    // ]
 
 
 
@@ -156,12 +156,14 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
     changeTabURL(currentTab.id, message.selectedLink);
 
   } else if (message.type === "RETURN_PAGE_TO_HOME") {
-    const key = `${currentTab.id}|${currentTab.url}`;
-    const result = getStorageLocal(key)
-    changeTabURL(currentTab.id, result.identifiers[tabURL]);
+    const allData = await chrome.storage.local.get(null);
+    const key = Object.keys(allData).find(key => key.startsWith(`${currentTab.id}|`));
 
-
-
+    if (key) {
+      changeTabURL(currentTab.id, allData[key].identifiers.tabURL);
+    } else {
+      console.warn("No stored Wayback data found for this tab.");
+    }
   }
   // else if (message.type === "GET_STORED_WAYBACK_DATA") {
   //   const key = `${currentTab.id}|${currentTab.url}`;
